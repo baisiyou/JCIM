@@ -1,0 +1,13 @@
+# Install RDKit via conda first:
+#   conda install -c conda-forge rdkit
+torch>=2.2
+torch-geometric>=2.5
+numpy
+pandas
+scikit-learn
+tqdm
+pyyaml
+joblib
+chembl-downloader
+duckdb>=1.4
+fcd-torch

@@ -1,0 +1,86 @@
+{
+  "all_success_identical": true,
+  "all_queries_identical": true,
+  "methods": [
+    {
+      "method": "Effect beam (MLP)",
+      "n": 200,
+      "success_pct_default": 79.5,
+      "success_pct_partial_f0": 79.5,
+      "mean_q_default": 13.76,
+      "mean_q_partial_f0": 13.76,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Matched-pair / MMP",
+      "n": 200,
+      "success_pct_default": 66.5,
+      "success_pct_partial_f0": 66.5,
+      "mean_q_default": 18.8,
+      "mean_q_partial_f0": 18.8,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Static MW heuristic",
+      "n": 200,
+      "success_pct_default": 74.0,
+      "success_pct_partial_f0": 74.0,
+      "mean_q_default": 15.77,
+      "mean_q_partial_f0": 15.77,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Ridge effect",
+      "n": 200,
+      "success_pct_default": 76.0,
+      "success_pct_partial_f0": 76.0,
+      "mean_q_default": 14.95,
+      "mean_q_partial_f0": 14.95,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Direct ridge (dest FP)",
+      "n": 200,
+      "success_pct_default": 77.5,
+      "success_pct_partial_f0": 77.5,
+      "mean_q_default": 14.87,
+      "mean_q_partial_f0": 14.87,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Direct ridge (dest FP + p(m))",
+      "n": 200,
+      "success_pct_default": 73.5,
+      "success_pct_partial_f0": 73.5,
+      "mean_q_default": 15.16,
+      "mean_q_partial_f0": 15.16,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Direct GBT (dest FP)",
+      "n": 200,
+      "success_pct_default": 71.5,
+      "success_pct_partial_f0": 71.5,
+      "mean_q_default": 16.91,
+      "mean_q_partial_f0": 16.91,
+      "success_discordance": 0,
+      "query_discordance": 0
+    },
+    {
+      "method": "Random beam",
+      "n": 200,
+      "success_pct_default": 58.5,
+      "success_pct_partial_f0": 58.5,
+      "mean_q_default": 23.84,
+      "mean_q_partial_f0": 23.84,
+      "success_discordance": 0,
+      "query_discordance": 0
+    }
+  ]
+}

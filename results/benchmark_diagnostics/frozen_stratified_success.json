@@ -1,0 +1,67 @@
+{
+  "source_success": "results/protocol_freeze/primary_per_episode.parquet",
+  "source_structure": "results/benchmark_diagnostics/per_episode_diagnostics.parquet",
+  "effect_overall": 79.5,
+  "random_overall": 58.5,
+  "path_length": [
+    {
+      "shortest_path": 1,
+      "n": 58,
+      "effect_pct": 100.0,
+      "random_pct": 91.4,
+      "mean_local_solutions": 8.0
+    },
+    {
+      "shortest_path": 2,
+      "n": 96,
+      "effect_pct": 85.4,
+      "random_pct": 57.3,
+      "mean_local_solutions": 7.7
+    },
+    {
+      "shortest_path": 3,
+      "n": 46,
+      "effect_pct": 41.3,
+      "random_pct": 19.6,
+      "mean_local_solutions": 4.3
+    }
+  ],
+  "density_tertiles": [
+    {
+      "density_tertile": "Low",
+      "n": 67,
+      "effect_pct": 73.1,
+      "random_pct": 46.3,
+      "mean_local_solutions": 4.7,
+      "mean_indexed_density": 2256.7,
+      "mean_shortest_path": 1.985,
+      "effect_beam_success": 0.7313432835820896,
+      "random_beam_success": 0.4626865671641791,
+      "cached_bfs_success": 1.0
+    },
+    {
+      "density_tertile": "Mid",
+      "n": 66,
+      "effect_pct": 86.4,
+      "random_pct": 59.1,
+      "mean_local_solutions": 7.6,
+      "mean_indexed_density": 7008.7,
+      "mean_shortest_path": 1.864,
+      "effect_beam_success": 0.8636363636363636,
+      "random_beam_success": 0.5909090909090909,
+      "cached_bfs_success": 1.0
+    },
+    {
+      "density_tertile": "High",
+      "n": 67,
+      "effect_pct": 79.1,
+      "random_pct": 70.1,
+      "mean_local_solutions": 8.7,
+      "mean_indexed_density": 12916.5,
+      "mean_shortest_path": 1.97,
+      "effect_beam_success": 0.7910447761194029,
+      "random_beam_success": 0.7014925373134329,
+      "cached_bfs_success": 1.0
+    }
+  ]
+}

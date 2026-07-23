@@ -1,0 +1,6 @@
+suite,method,n,success_pct,mean_paid,median_paid,mean_legacy_calls,mean_dist
+endpoint_walk,Exhaustive depth-3,200,100.0,571.5,465.0,2141.4,0.19
+endpoint_walk,A* best-first,200,100.0,61.5,24.0,131.2,0.22
+endpoint_walk,Exact-property beam,200,82.0,53.4,47.0,107.5,0.275
+endpoint_walk,Oracle greedy,200,54.0,26.3,20.5,33.0,0.442
+endpoint_walk,Budget exact-neighbor,200,55.5,21.5,16.5,25.5,0.444

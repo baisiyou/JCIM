@@ -1,0 +1,21 @@
+{
+  "hardware": "Apple M4, 16GB unified memory",
+  "duckdb_gb": 1.31,
+  "n_molecules": 1584663,
+  "n_edges": 12597626,
+  "replace_degree_mean_median_max": [
+    8.1,
+    6,
+    152
+  ],
+  "mlp_train_wall_sec": 774.0,
+  "mlp_device": "mps",
+  "search_mean_sec": {
+    "Effect MLP": 0.14,
+    "Direct ridge": 0.13,
+    "Random": 0.18,
+    "A*": 0.3,
+    "exhaustive": 4.02
+  },
+  "note": "Offline BRICS/index build wall-clock not re-instrumented in this revision."
+}

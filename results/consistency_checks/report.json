@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "n_errors": 0,
+  "sections": {
+    "freeze_headlines": [],
+    "strata_reweight": [],
+    "exact_queries": [],
+    "tex_forbidden": [],
+    "f0_identity": [],
+    "query_ledger": [],
+    "fig1_caption_numbers": [],
+    "pdf_unresolved_refs": []
+  }
+}

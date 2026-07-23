@@ -1,0 +1,15 @@
+fp_bits: 2048
+fp_radius: 2
+hidden: 512
+dropout: 0.1
+batch_size: 512
+lr: 0.001
+weight_decay: 0.00001
+epochs: 10
+patience: 3
+num_workers: 0
+seed: 42
+# set null to use all train pairs
+max_train_pairs: 1000000
+max_val_pairs: 100000
+max_test_pairs: 100000

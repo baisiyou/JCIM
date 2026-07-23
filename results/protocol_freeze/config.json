@@ -1,0 +1,18 @@
+{
+  "max_episodes": 200,
+  "seed": 42,
+  "max_train_rows": 15000,
+  "fractions": [
+    0.0,
+    0.25,
+    0.5,
+    1.0
+  ],
+  "skip_partial": false,
+  "direct_checkpoint": "[REDACTED]/\u836f\u7269\u8bba\u6587/results/protocol_freeze/direct_ridge_canonical.pkl",
+  "mlp_checkpoint": "[REDACTED]/\u836f\u7269\u8bba\u6587/checkpoints/v2/effect_predictor.pt",
+  "count_start_query": false,
+  "start_always_free": true,
+  "direct_max_rows": 15000,
+  "note": "Canonical freeze: default oracle \u2261 partial f=0 episode-wise; Direct@15000 matches Table 4; Random=58.5%."
+}

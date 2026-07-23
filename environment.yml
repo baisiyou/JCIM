@@ -1,0 +1,19 @@
+name: causalmol
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - rdkit>=2024.03
+  - pip
+  - pip:
+      - torch>=2.2
+      - torch-geometric>=2.5
+      - numpy
+      - pandas
+      - scikit-learn
+      - tqdm
+      - pyyaml
+      - joblib
+      - chembl-downloader
+      - duckdb>=1.4

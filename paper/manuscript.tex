@@ -1,0 +1,629 @@
+\begin{abstract}
+This paper audits multi-property \emph{graph navigation} on an observed MOSES BRICS edit graph with cheap RDKit descriptors (QED, LogP, MW)---not docking-, DFT-, or assay-efficient design.
+Under full indexing, exact search within the observed replace-only neighborhood solves endpoint-walk episodes at zero paid queries: learning is unnecessary.
+When destination structure is visible, direct $p(m')$ and effect $\Delta p$ are representationally equivalent under deterministic properties (Proposition~\ref{prop:equiv}); empirical MLP--ridge residuals are joint finite-model effects, not neural necessity of edge effects.
+Preferred cost--success operating points are regime-dependent under indexing, property suite, action-space match, and oracle support.
+An out-of-support MMFF probe shows that cheap-descriptor rankings do not transfer reliably.
+Reported query efficiency here is largely explained by benchmark assumptions (Tables~\ref{tab:regimes}--\ref{tab:claims}).
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Lead-optimization requests are often numerical: move QED toward 0.75 and LogP toward 2.7, but keep molecular weight near 310. Maximizing a single score does not solve this problem; an improvement on one coordinate can violate another. Existing generators produce valid molecules reliably, yet narrow multi-property boxes still tend to require target-specific optimization or repeated oracle feedback \citep{sanchez2018inverse,brown2019guacamol}. Before attributing such failures---or successes---to learning methods, the community needs benchmarks that separate \emph{graph reachability}, \emph{label access}, and \emph{ranking quality}.
+
+This paper supplies that separation as a \emph{benchmark assumption audit}---implemented as the EditGraph observed-graph search stack---organized around three research questions:
+\begin{itemize}
+  \item \textbf{RQ1.} Under complete label indexing, is learning necessary?
+  Answer: no---cached exact search within the observed replace-only depth-$T$ neighborhood reaches 100\% on endpoint-walk episodes.
+  \item \textbf{RQ2.} Under incomplete label access, does learned ranking beat strong classical and direct predictors?
+  Answer: only a small residual, and it is suite-dependent (Table~\ref{tab:classical_matrix}): Suite~A primary contrast is MLP vs.\ direct ridge ($+3.9$pp on start-disjoint confirmatory $n{=}1000$, $p{=}3\times10^{-4}$; $+2.0$pp on frozen $n{=}200$, $p{=}0.50$).
+  \item \textbf{RQ3.} Which benchmark assumptions can induce or amplify apparent method advantages?
+  Answer: indexing completeness, label accounting, property suite, action-space match, and oracle support---formalized as regime-dependent \emph{cost--success} preferences (Table~\ref{tab:regimes}) and claim boundaries (Table~\ref{tab:claims}).
+\end{itemize}
+
+The starting molecule is fixed and candidate products come from an observed edit graph whose node properties are precomputed offline. The setting gives up unrestricted novelty. In return, every claim about ``multi-property control'' can be audited against an exact-search ceiling, classical heuristics, and explicit negative controls.
+
+\textbf{Primary protocol: observed-graph search.} For the graph actually built here---QED, LogP, and MW as deterministic, microsecond-scale RDKit descriptors already indexed for every molecule---the correct algorithm is graph search with cached labels: enumerate replace-only neighbors, read stored $p(m')$, and run BFS, $A^\ast$, or beam search to depth~3. No effect predictor and no repeated descriptor computation are required. Cached exact search reaches 100\% on endpoint-walk episodes. This is the scientific baseline for the present chemistry, not a footnote.
+
+\textbf{Secondary protocol: hidden labels as a label-access stress test.} We also withhold cached labels during search and charge one \emph{label query} each time a planner reads $p(m')$. On MOSES those descriptors are free and recomputable from SMILES, so the protocol answers only: if labels were incomplete, would ranking help? EditGraph's effect model is one ranker among MW/MMP heuristics, direct predictors, in-graph GA, noise collapse, and partial indexing $f{\in}[0,1]$. Unique-node totals ($\approx$14 for Effect MLP) are protocol statistics, not chemistry cost claims.
+
+The paper makes four concrete contributions:
+\begin{itemize}
+  \item a fixed-start molecular \emph{graph-navigation benchmark} with replace-only action-space alignment, exact-search ceilings on cached labels, and an explicit claim-boundary table (Table~\ref{tab:claims});
+  \item an \emph{information-sufficiency} observation (Proposition~\ref{prop:equiv}): when complete destination structure is observed, direct $p(m')$ and effect $\Delta p$ parameterizations are representationally equivalent under deterministic properties; empirical MLP--ridge residuals are joint finite-model effects and do \emph{not} isolate $\Delta$-parameterization (Information Sufficiency);
+  \item an audit of \emph{label-access assumptions}: observed-graph vs.\ hidden-label vs.\ partial indexing, plus a noisy-label probe that falsifies assay sample-efficiency readings of the same numbers;
+  \item an \emph{assumption-conditioned cost--success} matrix (Table~\ref{tab:regimes}) showing that preferred operating points are regime-dependent as indexing, property suite, action space, and oracle support vary---without new chemistry computation.
+\end{itemize}
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Property-conditioned generation.}
+Latent-variable methods optimize molecules in learned continuous spaces \citep{gomez2018chemical}; graph-native models improve structural validity through adversarial generation, constrained substructure assembly, or normalizing flows \citep{decao2018molgan,jin2018jtvae,shi2020graphaf,zang2020moflow}. These methods are effective for distribution learning and broad optimization, but decoding from a latent point does not guarantee membership in a narrow multi-property tolerance box.
+
+Reinforcement-learning methods optimize a task-defined reward. REINVENT fine-tunes a SMILES policy \citep{olivecrona2017reinvent}, whereas GCPN and MolDQN edit molecular graphs \citep{you2018gcpn,zhou2019moldqn}. Changing a target or trade-off may require a new reward, policy adaptation, or repeated oracle interaction. GuacaMol and PMO standardize goal-directed evaluation \citep{brown2019guacamol,gao2022pmo}, but chiefly emphasize scalar maximization. We instead match a numeric vector from a prescribed held-out start.
+
+\paragraph{Fragments and molecular editing.}
+BRICS provides retrosynthetically motivated bond-cutting rules \citep{degen2008brics}. JT-VAE and HierG2G organize generation around substructures and motifs \citep{jin2018jtvae,jin2020hierg2g}, while Modof concentrates optimization in a small number of fragment modifications \citep{chen2021modof}. GraphGA directly evolves molecular graphs \citep{jensen2019graphga}. EditGraph differs by searching an \emph{observed} graph whose destination molecules are sanitizable and whose node properties are indexed offline. This trades unrestricted novelty for validity, auditability, and controlled comparisons.
+
+\paragraph{Planning and label access.}
+Algorithmically, EditGraph is graph search on an observed fragment graph, optionally with a learned or classical edge ranker when labels are withheld. Unlike latent-space gradient ascent, actions remain discrete and chemically interpretable. With a full cache, exact search needs no learning; with artificial hiding or partial indexing, ranking becomes testable under the label-access protocols above.
+
+\paragraph{Active learning, Bayesian optimization, and costly oracles.}
+When labels are expensive, molecular design is often cast as sequential decision making under a budget. Active learning prioritizes informative acquisitions~\citep{settles2009active,reker2015active,graff2021accelerating}; Bayesian optimization and related surrogate search methods target sample-efficient black-box optimization in chemical space~\citep{hernandez2017parallel,korovina2020chembo,griffiths2020constrained,tripp2021sample}. Practical molecular optimization benchmarks further emphasize wall-clock and oracle-call efficiency~\citep{gao2022pmo}. EditGraph's hidden-label and partial-indexing protocols are deliberately weaker: they withhold already-computed RDKit descriptors on an observed edit graph, rather than closing the loop with docking, DFT, or assays. We therefore cite this literature as the correct operational setting for ``query-efficient discovery,'' and treat our MMFF and budgeted-surrogate probes only as minimal non-free checks---not as substitutes for those oracles.
+
+\paragraph{Matched molecular pairs and fragment editing.}
+Matched molecular pair (MMP) analysis is the standard cheminformatics tool for relating structural changes to property shifts. EditGraph operationalizes this idea as a searchable graph whose edges are observed BRICS replacements annotated with property deltas. Our \emph{matched-pair $\Delta$} baseline averages training-set deltas for identical fragment transformations, providing a classical MMP lookup without neural ranking.
+
+\paragraph{Chemistry LLM agents and M$^4$olGen.}
+Tool-augmented agents such as ChemCrow demonstrate that LLMs can orchestrate chemistry tools \citep{bran2024chemcrow}, but LLM-only editing must jointly preserve syntax, infer fragment effects, and perform precise arithmetic. M$^4$olGen \citep{li2026m4olgen} is the closest task-specific system: Stage I retrieves a prototype and proposes edits; Stage II performs GRPO-trained multi-hop refinement. EditGraph replaces policy-based fine-grained control with an explicit effect model and verified search. Official executable GRPO weights were unavailable for this evaluation; we therefore do \emph{not} claim a formal M$^4$olGen reproduction. A self-built supervised editor that only mimics Stage~I/II structure is reported in the appendix as a diagnostic baseline, not as a main-table peer.
+
+\section{Problem Setup}
+\label{sec:problem}
+
+Let the property map be
+\[
+p(m)=\left(p_{\mathrm{QED}}(m),p_{\mathrm{LogP}}(m),p_{\mathrm{MW}}(m)\right).
+\]
+We use ``property oracle'' only as shorthand for obtaining $p(m)$ at search time. In the observed-graph protocol, $p(m)$ is a database lookup on precomputed RDKit values. In the hidden-label protocol, $p(m)$ is revealed only when the planner pays a label query; re-running RDKit would be redundant because labels already exist offline, so live recomputation is a protocol device rather than a physical cost model.
+Given a target $p^\star$ and starting molecule $m_0$, the task is to find a valid molecule reachable by at most $T$ fragment edits such that
+\[
+|p_k(m)-p^\star_k|\leq\varepsilon_k,\quad
+k\in\{\mathrm{QED},\mathrm{LogP},\mathrm{MW}\}.
+\]
+We set $\varepsilon=(0.03,0.20,10.0)$ and rank candidates using
+\[
+d(p,p^\star)=\left\|(p-p^\star)\oslash s\right\|_2,\qquad
+s=(0.1,1.0,30.0),
+\]
+where $\oslash$ is element-wise division. The coordinate-wise tolerance box, not this scalar distance, determines success.
+
+\paragraph{Primary protocol.}
+Each episode supplies the same held-out start and reachable target to every method. This fixed-start design tests editing; target-only retrieval is reported separately because it can return any nearby library molecule.
+
+\paragraph{Observed-graph protocol (primary).}
+The offline index stores, for every molecule $m\in V$, its properties $p(m)$ and outgoing replace/add/remove edges with stored $\Delta p_e$. At search time the planner may read $p(m')$ for any indexed neighbor $m'$ at zero incremental descriptor cost. Exact depth-$T$ BFS or best-first search on replace-only edges therefore upper-bounds what is reachable in the observed library without learning. This is the appropriate baseline when labels are cheap and already materialized---as they are for QED, LogP, and MW here.
+
+\paragraph{Budgeted search with hidden node attributes (secondary ML benchmark).}
+To audit ranking under incomplete label access---not to claim experimental sample efficiency---we also evaluate a stricter protocol: during search the planner sees graph topology (SMILES, fragments, adjacency) but \emph{not} cached node labels. Each access to $p(m')$ counts as one \emph{label query}. Stored $\Delta p_e$ are used only to train the effect model offline and are unavailable to the planner at test time. Ranking then uses either the learned effect model or live label revelation on selected candidates. We report label-query counts as a protocol statistic only. They are \emph{not} docking, DFT, or assay costs; for the descriptors used here, the observed-graph protocol already solves endpoint-walk episodes at 100\% without queries, so the hidden-label numbers have no direct chemical operating cost.
+
+\paragraph{Target suites.}
+The primary benchmark uses endpoint-derived targets from random walks (reachable by construction). We additionally evaluate: (i)~\emph{independent target boxes} sampled from MOSES marginals without tying properties to a walk endpoint; (ii)~\emph{unsatisfiable boxes} with no indexed solution; (iii)~\emph{variable shortest-path lengths} ($1$--$5$ edits); (iv)~\emph{solution-density} stratification counting indexed molecules inside the tolerance box; (v)~\emph{leave-property-region-out} targets outside a held-out high-QED training band; and (vi)~\emph{tolerance sweeps} with tighter and wider boxes. Marginal per-property success is reported in addition to joint box satisfaction.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=\textwidth]{method_schematic.png}
+\caption{Graph-search schematic for EditGraph. Candidates live on an observed BRICS replace-only graph with indexed RDKit properties. An effect model ranks fragment replacements; beam search proposes short paths; labels verify the target box. Protocol~A reads cached labels (exact-search ceiling). Protocol~B withholds labels and counts unique-node revelations as an ML query budget; the primary Suite~A contrast is Effect MLP $79.5\%$@$13.8$q vs.\ direct ridge $77.5\%$@$14.9$q (not vs.\ random).}
+\label{fig:method}
+\end{figure*}
+\FloatBarrier
+
+\section{Information Sufficiency: Direct vs.\ Effect Prediction}
+\label{sec:theory}
+
+The hidden-label protocol makes destination structure visible while withholding $p(m')$. Two parameterizations are then natural. A \emph{direct} map predicts $\widehat p(m')=g\!\left(x(m')\right)$. An \emph{effect} map predicts $\widehat p(m')=p(m)+\widehat{\Delta}\!\left(m\!\to\!m'\right)$. Empirically the effect MLP and direct ridge nearly match (Table~\ref{tab:direct}). The observation below formalizes why that near-match is expected under deterministic, fully visible structure: the two forms are \emph{representationally equivalent} at the population optimum, so an apparent neural gap cannot be attributed to a structural signal available only to $\Delta$-models.
+
+\paragraph{Prediction versus ranking.}
+Write the \emph{prediction loss}
+\[
+L_{\mathrm{pred}}\!\left(\widehat p(m'),p(m')\right)=\bigl\|\widehat p(m')-p(m')\bigr\|_2^{2},
+\]
+which is uniquely minimized at $\widehat p(m')=p(m')$. Separately, navigation ranks candidates by a deterministic \emph{score}
+\[
+S(m')=d\!\left(\widehat p(m'),p^\star\right)
+\]
+(e.g., the scaled residual used by the planner). Identical recovered property maps therefore induce identical $S$-orderings for any deterministic $d(\,\cdot\,,p^\star)$. Critically, $L_{\mathrm{pred}}$ is \emph{not} $\|\widehat p-p^\star\|_2^{2}$: that surrogate is minimized at $\widehat p=p^\star$, not at the true $p(m')$.
+
+\paragraph{Visible structure versus experimental features.}
+Let $x(m')$ denote the \emph{complete planner-visible molecular structure} (canonical SMILES / graph). Let $\phi_{\mathrm{Morgan}}(m')$ denote the radius-2, 2048-bit Morgan fingerprint used by the empirical direct ridge. Only $x(m')$ is assumed sufficient for deterministic RDKit descriptors; $\phi_{\mathrm{Morgan}}$ is a finite, collision-prone, \emph{non}-sufficient encoding used in experiments.
+
+\begin{proposition}[Representational equivalence under deterministic visible structure]
+\label{prop:equiv}
+Assume (i)~$p{:}\,V\!\to\!\mathbb{R}^{3}$ is a deterministic function of structure; (ii)~the planner observes $x(m')$ that determines $p(m')$ uniquely; (iii)~$p(m)$ is known at scoring time; (iv)~the hypothesis classes for $g$ and $\widehat{\Delta}$ can represent any measurable map of their inputs. Then there exist $g^\star$ and $\widehat{\Delta}^\star$ such that
+\[
+g^\star\!\left(x(m')\right)
+\;=\;
+p(m)+\widehat{\Delta}^\star(m\!\to\!m')
+\;=\;
+p(m')
+\]
+for every observed edge $(m,m')$. Consequently both parameterizations attain the same population minimum of $L_{\mathrm{pred}}$ and induce identical rankings under any deterministic score $S(m')=d(\widehat p(m'),p^\star)$.
+\end{proposition}
+
+\noindent\textit{Proof sketch.}
+Determinism and (ii) give $p(m')=\psi\!\left(x(m')\right)$ for a fixed $\psi$. Set $g^\star=\psi$ and $\widehat{\Delta}^\star(m\!\to\!m')=\psi\!\left(x(m')\right)-p(m)$. Both recover $p(m')$ exactly, so $L_{\mathrm{pred}}$ and $S$ coincide.
+
+\paragraph{Reading the result.}
+This is a \emph{sufficiency / reparameterization} observation at the population optimum under infinite capacity---not a claim of Bayesian decision-theoretic equivalence under a specified prior, nor a deep theorem. It constrains overclaiming: edge-effect modeling is not information-theoretically necessary once $x(m')$ is observed. Empirically, the Suite~A MLP--ridge residual does \emph{not} isolate $\Delta$-parameterization: the compared systems also differ in architecture (MLP vs.\ ridge), features (source$+$fragment vs.\ destination Morgan FP), and optimization. A matched cross-ablation under the frozen ledger (script \texttt{42\_matched\_architecture\_ablation.py}; $n{=}200$; $\texttt{max\_rows}{=}15000$) confirms the confounding: Effect MLP@$15$k $77.0\%$ $\approx$ Effect ridge $76.0\%$ ($+1.0$pp, McNemar $p{=}0.81$); Direct MLP (dest FP) $75.0\%$ does \emph{not} beat Direct ridge $77.5\%$ ($-2.5$pp, $p{=}0.33$); destination-only $\Delta$ models lag ($66.5$--$70.5\%$). The production Effect MLP's $79.5\%$ therefore reflects the joint recipe---including its larger ($\sim$$10^6$-pair) training set---rather than an isolated $\Delta$-parameterization advantage (Supporting Information). The matched ablation still does \emph{not} fully equalize hyperparameter search effort or parameter count across cells; it is an experimental confounding check, not a sample-complexity theorem.
+
+\paragraph{Corollaries for this benchmark.}
+(1)~\emph{No information gap between parameterizations under the idealization.} Modeling $\Delta p$ cannot unlock a signal unavailable to a direct map of $x(m')$. (2)~\emph{Empirical residuals are joint finite-model effects.} Suite~A's $+2$--$4$\,pp production MLP--ridge gap and Suite~B's tie reflect the \emph{combined} differences above---not a pure ``effect inductive-bias'' channel; the matched $15$k cross-ablation finds no significant architecture-only or $\Delta$-only advantage. (3)~\emph{When equivalence fails.} Equivalence may fail when the oracle depends on latent or unobserved variables not determined by planner-visible $x(m')$, such as stochastic conformers, assay context, experimental conditions, or measurement noise. Our \emph{deterministic} MMFF implementation (fixed ETKDG seed, one cached conformer per SMILES) does \emph{not} violate Proposition~\ref{prop:equiv}: $E_{\mathrm{MMFF}}$ remains a function of SMILES under that protocol. The MMFF probes instead test out-of-support transfer and finite-data surrogate learning. (4)~\emph{Full indexing dominates both.} When $p(m')$ is free from the cache, exact search is optimal and the proposition is moot: cached BFS reaches 100\% (Table~\ref{tab:exact}).
+
+The Assumption-Conditioned Method Ordering discussion (Table~\ref{tab:regimes}) collects the complementary empirical claim: preferred \emph{cost--success} operating points are regime-dependent under fixed chemistry.
+
+\section{EditGraph}
+\label{sec:method}
+
+\subsection{Effect-Annotated Edit Graph}
+
+Let $V$ contain canonical, RDKit-sanitized MOSES molecules \citep{polykovskiy2020moses}. RDKit computes QED \citep{bickerton2012qed}, Crippen LogP \citep{wildman1999crippen}, and molecular weight. BRICS decomposition \citep{degen2008brics} identifies molecules differing by one operation
+$a=(t,f_{\mathrm{old}},f_{\mathrm{new}})$, with
+$t\in\{\texttt{replace},\texttt{add},\texttt{remove}\}$.
+For every directed edge $e=(m,a,m')$, we store
+\[
+\Delta p_e=p(m')-p(m).
+\]
+Direction is retained because effects depend on molecular context. Molecule properties and outgoing adjacency lists are indexed in DuckDB; every neighbor's $p(m')$ is available before search begins. \textbf{Action-space alignment:} although the indexed graph contains \texttt{replace}, \texttt{add}, and \texttt{remove} edges, both episode generation and the primary planner expand \emph{replacement edges only}. Endpoint-walk targets are therefore reachable by construction under the same replace-only depth-$T$ neighborhood searched at test time; add/remove edges are retained for completeness of the observed graph but are excluded from the primary benchmark protocol.
+
+\paragraph{Direct search on cached labels.}
+Given this index, the default solver is exact or best-first graph search that reads stored $p(m')$ for each expanded neighbor. No neural model is required for endpoint-walk episodes in the observed-graph protocol (Table~\ref{tab:exact}). Throughout, ``exact BFS/$A^\ast$'' means \emph{exact within the observed replace-only depth-$T$ neighborhood} (here $T{=}3$), not exact search over all of chemical space. Exact cached planners enumerate the \emph{full} outgoing adjacency (no $M$-cap); neighbors are returned under a deterministic \texttt{ORDER BY} destination SMILES. Empirically the replace-only out-degree never exceeds $152$ on this index (mean $8.1$; $0\%$ of nodes have degree ${>}500$), so a historical beam-side $M{=}500$ listing cap would not have truncated any exact-search neighborhood either. Budgeted beam/GA rankers may still apply a finite $M$ when ranking candidates. EditGraph's effect model is evaluated only under the hidden-label budget, where cached reads are disallowed and queries must be spent selectively.
+
+From two million candidate edges, endpoint grouping retains 1,492,764 within-split edges and discards 507,236 cross-split edges. Train/validation/test contain 1,373,145 / 57,656 / 61,963 edges and 929,390 / 60,324 / 63,725 unique endpoints.
+
+\subsection{Endpoint-Disjoint Effect Learning}
+
+Random edge splitting would leak molecules because one endpoint can occur in many pairs. We assign Bemis--Murcko scaffolds \citep{bemis1996frameworks} to groups by hashing and retain only edges whose endpoints belong to the same split. Endpoint overlap is therefore zero for every split pair.
+
+For edge $e$, the input is
+\[
+x_e=[\phi(m)\Vert\phi(f_{\mathrm{old}})\Vert
+\phi(f_{\mathrm{new}})\Vert\mathrm{onehot}(t)],
+\]
+where $\phi$ is a radius-2, 2048-bit Morgan fingerprint \citep{rogers2010ecfp}; an empty fragment maps to zeros. A two-hidden-layer MLP with widths 512 and 256, ReLU activations, and 0.1 dropout predicts the standardized effect. For training means $\mu_k$ and standard deviations $\sigma_k$,
+\begin{align}
+z_{e,k}&=\frac{\Delta p_{e,k}-\mu_k}{\sigma_k},\\
+\mathcal{L}&=\frac{1}{3|E_{\mathrm{tr}}|}\sum_{e,k}
+\left(f_\theta(x_e)_k-z_{e,k}\right)^2.
+\end{align}
+We train with Adam for 10 epochs and select by validation normalized MAE. Held-out edge MAE is 0.0160 QED, 0.0957 LogP, and 4.20 Da MW.
+
+\paragraph{Terminology.}
+The labels are deterministic differences between observed endpoints. Scaffold grouping tests transfer but does not identify arbitrary counterfactual chemistry. We use \emph{effect-aware}, not a claim of full causal identification, and restrict planning to observed edit support.
+
+\subsection{Closed-Loop Beam Planning (Hidden-Label Protocol)}
+
+When cached labels are withheld, EditGraph ranks outgoing replace edges with a learned effect model before spending label queries. A state is $(m_t,p_t,\pi_t,V_t)$: current molecule, currently known properties, path, and visited set. For each outgoing edge, the model computes
+\[
+\widehat p_{t+1}(e)=p_t+f_\theta(x_e),\qquad
+\widehat d_e=d(\widehat p_{t+1}(e),p^\star).
+\]
+From the outgoing replace-only neighborhood (beam rankers may list at most $M{=}500$ neighbors under deterministic SMILES order), the best $A{=}5$ predicted actions receive label queries. Revealed candidates receive
+\[
+J(m',t)=d(p(m'),p^\star)+\lambda t,\qquad \lambda=0.02.
+\]
+Cycles are removed, duplicate destinations are merged by minimum score, and the best $B=5$ states form the next beam. Search stops on coordinate-wise success or after $T=3$ edits, returning the best state seen. We report effect-model forward passes and label-query counts separately; neither should be read as physical RDKit cost in the indexed setting.
+
+The key update is
+\[
+p_{t+1}\leftarrow p(m_{t+1}),
+\]
+rather than accumulating $\sum_i\widehat{\Delta p}_i$. Each next prediction is anchored at the actual destination. The output records fragments, predicted and oracle $\Delta p$, and distance for every step.
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Setup}
+
+\paragraph{Data and episodes.}
+All molecules are from public MOSES; properties are deterministic RDKit calculations, not wet-lab measurements. We construct 200 episodes from held-out endpoints using three-step \emph{replace-only} random walks on the same indexed graph used at test time, minimum initial normalized distance 1.0, and per-axis target jitter $(0.02,0.15,7.5)$ strictly below the evaluation tolerances $(0.03,0.20,10.0)$ so the generating walk endpoint remains a valid solution. Any start appearing as a training edge endpoint is excluded.
+
+\paragraph{Baselines.}
+\textbf{Observed-graph baselines (primary).} Exact replace-only BFS, cached-label $A^\ast$/best-first, and exhaustive depth-3 search read indexed $p(m')$ directly.
+
+\textbf{Hidden-label baselines (secondary).} Effect beam (EditGraph), exact-property beam, budgeted exact-neighbor search, matched-pair $\Delta$ beam, $k$NN transform beam, linear/tree effect models, random and greedy beams, and live-oracle exhaustive/$A^\ast$ search that re-reveal labels under the query counter. Label-query counts are comparable \emph{within} this protocol only.
+
+\textbf{External fairness suite (secondary).} We ablate search space and budget on the same endpoint-walk episodes (Fairness Experiments): GraphGA de~novo, In-graph GA (observed replace-only edges only), and a self-built supervised editor (greedy vs.\ matched probes). These runs quantify---rather than only acknowledge---the library-access advantage and are not treated as official M$^4$olGen/GRPO reproductions.
+
+\textbf{Cheminformatics effect scorers (matched protocol).} Under the same hidden-label beam settings we also rank with matched-pair / fragment-pair $\Delta p$ lookup, $k$NN transforms, ridge and tree/forest regressors on Morgan features, exact additive fragment $\Delta\mathrm{MW}$, a static MW heuristic, and an uncertainty-aware ensemble (Cheminformatics and Direct Predictors).
+
+\paragraph{Statistics.}
+We use paired McNemar tests for success and bootstrap confidence intervals for rates and distance. Multi-seed reliability uses a \emph{fixed} 200-episode endpoint-walk test set (suite construction seed~42; never re-sampled) and a \emph{fixed} endpoint-grouped scaffold split. We separately vary (i)~neural initialization and training RNG, (ii)~beam tie-breaking / search RNG, and (iii)~GraphGA RNG, each over five seeds $\{42,\ldots,46\}$, and report mean$\pm$std across seeds plus episode-level bootstrap $95\%$ CIs (Multi-Seed Reliability). Validity and uniqueness are checked on final outputs; MOSES-style novelty/FCD appear only in the Supporting Information.
+
+\subsection{Observed-Graph and Hidden-Label Results}
+
+\begin{table}[t]
+\caption{Success rate (\%) across target suites. \textbf{Observed-graph rows} read indexed RDKit labels (zero label queries). \textbf{Hidden-label rows} count each unique revealed $p(m)$ once per episode (canonical-SMILES dedupe; start free; script \texttt{41\_exact\_baselines\_unique\_node.py} for exact/exhaustive baselines, \texttt{40\_protocol\_freeze.py} for Effect/Direct/Random). The Oracle column reports mean unique-node queries on endpoint-walk episodes only. Var.\ depth averages depths $1$--$5$.}
+\label{tab:exact}
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+Method & Endpoint & Indep. & Unsat. & Leave-out & Var.\ depth & Queries \\
+\midrule
+\multicolumn{7}{l}{\textit{Observed graph: cached indexed labels (0 queries)}} \\
+Exact graph BFS (cached) & 100.0 & 39.5 & 0.0 & 100.0 & 96.0 & 0 \\
+Cached-label $A^\ast$ & 100.0 & 39.5 & 0.0 & 100.0 & 96.0 & 0 \\
+\midrule
+\multicolumn{7}{l}{\textit{Hidden labels: one query per unique revealed $p(m)$}} \\
+Exhaustive depth-3 & 100.0 & 39.5 & 0.0 & 100.0 & 96.0 & 571.5 \\
+$A^\ast$ best-first & 100.0 & 39.5 & 0.0 & 100.0 & 96.0 & 61.5 \\
+Exact-property beam & 82.0 & 19.0 & 0.0 & 86.0 & 80.5 & 53.4 \\
+\textbf{Effect beam (EditGraph)} & \textbf{79.5} & \textbf{19.0} & \textbf{0.0} & \textbf{86.0} & \textbf{80.5} & \textbf{13.8} \\
+Direct ridge (dest.\ FP) & 77.5 & --- & --- & --- & --- & 14.9 \\
+Static MW heuristic & 74.0 & --- & --- & --- & --- & 15.8 \\
+Random beam & 58.5 & 11.0 & 0.0 & 69.5 & 68.0 & 23.8 \\
+Oracle greedy & 54.0 & 9.0 & 0.0 & 60.0 & 66.5 & 26.3 \\
+Budget exact-neighbor & 55.5 & 9.5 & 0.0 & 61.0 & 66.5 & 21.5 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+Table~\ref{tab:exact} states the main scientific conclusion for this dataset. On endpoint-walk episodes---replace-only walks on the same indexed graph searched at test time---observed-graph BFS/$A^\ast$ with cached labels reaches \textbf{100\%} without any learned model. Multi-property ``control'' on a pre-indexed MOSES library with cheap descriptors therefore reduces to exact graph search; training an effect predictor is unnecessary in that setting.
+
+The hidden-label block asks a different question: if cached reads are forbidden, can ranking under a query budget retain success? Relative to random beam (58.5\%@$23.8$q), Effect reaches 79.5\%@$13.8$q---far fewer unique-node queries than hidden-label $A^\ast$ ($100\%$@$61.5$q; median $24$, P$_{95}$ $258$) or exhaustive depth-3 ($100\%$@$571.5$q; median $465$, P$_{95}$ $1628$; script \texttt{41\_exact\_baselines\_unique\_node.py}). The primary Suite~A contrast is direct destination ridge at 77.5\%@$14.9$q ($+2.0$pp; McNemar $p{=}0.50$; see Cheminformatics and Direct Predictors), not Static MW and not the weak random reference. Exhaustive/$A^\ast$ are \emph{success-dominant} over Effect; Effect is \emph{query-dominant} over them---the pairs are cost--success incomparable, not a single ranking. Independent boxes drop every method to 39.5\% (including cached exact search), showing that endpoint-walk success does not transfer to arbitrary property targets. Unsatisfiable boxes yield 0\% for all methods.
+
+\subsection{Benchmark Structure and Diagnostics}
+\label{sec:benchmark_diag}
+
+Endpoint-walk targets are \emph{not} independently sampled user goals. Each episode reverse-generates a target from a three-step replace-only random walk on the indexed graph, then applies per-axis jitter $(0.02,0.15,7.5)$ strictly inside the evaluation tolerances so the walk endpoint remains feasible. The primary suite therefore guarantees at least one nearby solution, caps required edit depth at $T{=}3$, and places targets near molecules already present in a dense MOSES edit graph. Random beam reaches 58.5\% under this structure not because the task is globally easy, but because uninformed expansion can often recover \emph{some} feasible neighbor without learned ranking. The benchmark measures efficient recovery of a nearby feasible state in a library where solutions exist locally; it does \emph{not} by itself validate navigation to externally specified targets that may be unsatisfiable, lie far from the training distribution, require longer edit paths, or demand cross-scaffold moves.
+
+Table~\ref{tab:benchmark_diag} reports per-episode structure on the 200 endpoint-walk episodes and stratifies hidden-label success by shortest feasible path length and indexed solution density (Effect/Random from the frozen evaluator in Table~\ref{tab:exact}/\ref{tab:direct}). Every episode has a shortest feasible path of at most three edits (mean 1.94). Within the depth-3 replace-only neighborhood, episodes contain a mean of 7.0 feasible solutions; the full indexed library contains a median of 7{,}217 molecules inside the tolerance box. Effect beam success falls from 100\% when the shortest path is one edit to 41.3\% when it is three, while random beam drops from 91.4\% to 19.6\%; cached-label BFS remains at 100\% regardless of path length. Success is therefore sensitive to required edit depth even when a solution exists locally. Solution-density tertiles show a weaker trend: high-density episodes improve random beam (70.1\% vs.\ 46.3\% in the lowest tertile) but not Effect beam monotonically (86.4\% Mid vs.\ 73.1\% Low).
+
+We additionally probe targets that are not tied to walk endpoints. Independent boxes sampled from MOSES marginals drop cached exact search to 39.5\% and Effect beam to 19.0\%. Unsatisfiable boxes (40 episodes with no indexed solution) yield 0\% success for all fifteen methods, confirming correct rejection under negative control. Variable-depth episodes show Effect beam success declining from 100\% at one edit to 55\% at five edits under the same tolerance box (Table~\ref{tab:exact}, Var.\ depth column). Together, these diagnostics characterize what the primary benchmark does and does not measure.
+
+\begin{table}[t]
+\caption{Benchmark-structure diagnostics on 200 endpoint-walk episodes ($T{=}3$, replace-only). ``Local solutions'' counts feasible molecules within depth~3; ``indexed density'' counts all indexed molecules in the tolerance box. Hidden-label Effect/Random rates use the frozen evaluator (script \texttt{40\_protocol\_freeze.py}; same episodes as Tables~\ref{tab:exact}--\ref{tab:direct}).}
+\label{tab:benchmark_diag}
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+Statistic & Value & Notes \\
+\midrule
+Shortest feasible path (mean) & 1.94 & all $\leq 3$ \\
+Local solutions in depth-3 neighborhood (mean) & 7.0 & per episode \\
+Indexed molecules in target box (median) & 7{,}217 & full library \\
+\midrule
+\multicolumn{3}{l}{\textit{Hidden-label success by shortest feasible path}} \\
+\quad 1 edit ($n{=}58$) & Effect 100.0\% / Random 91.4\% & cached BFS 100\% \\
+\quad 2 edits ($n{=}96$) & Effect 85.4\% / Random 57.3\% & cached BFS 100\% \\
+\quad 3 edits ($n{=}46$) & Effect 41.3\% / Random 19.6\% & cached BFS 100\% \\
+\midrule
+\multicolumn{3}{l}{\textit{Hidden-label success by indexed solution-density tertile}} \\
+\quad Low ($n{=}67$) & Effect 73.1\% / Random 46.3\% & 4.7 local solns. \\
+\quad Mid ($n{=}66$) & Effect 86.4\% / Random 59.1\% & 7.6 local solns. \\
+\quad High ($n{=}67$) & Effect 79.1\% / Random 70.1\% & 8.7 local solns. \\
+\midrule
+\multicolumn{3}{l}{\textit{External target controls (Effect beam / cached BFS)}} \\
+\quad Independent boxes & 19.0\% / 39.5\% & marginal targets \\
+\quad Unsatisfiable boxes & 0.0\% / 0.0\% & 40 episodes, all methods \\
+\quad Variable depth (1--5 edits) & 100--55\% / 100--85\% & Table~\ref{tab:exact} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Fairness Experiments: Search Space and Budget}
+\label{sec:fairness}
+
+Reviewer concern that GraphGA and EditGraph are not comparable is correct: GraphGA evolves molecules \emph{outside} the indexed library, while EditGraph searches a finite observed replace-only graph that contains a feasible path for endpoint-walk targets. We therefore run an explicit fairness suite on the \emph{same} 200 endpoint-walk episodes (Table~\ref{tab:fair}).
+
+\begin{table}[t]
+\caption{Fairness suite on 200 endpoint-walk episodes. \emph{In-graph GA} uses the same observed replace-only edges as EditGraph. \emph{GraphGA de~novo} uses official mol-opt operators and may leave the library. Effect/Direct queries use unique-node accounting (Table~\ref{tab:direct}); GA/GraphGA budgets are hard unique-node caps (not matched to Effect's mean). Self-built supervised editor rows are in the Supporting Information.}
+\label{tab:fair}
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+Method & Action space & Succ. & Queries & In-library \\
+\midrule
+\textbf{Effect beam (EditGraph)} & observed graph & \textbf{79.5\%} & \textbf{13.8} & 100\% \\
+Direct ridge (dest.\ FP) & observed graph & 77.5\% & 14.9 & 100\% \\
+In-graph GA (budget 200) & observed graph & 77.5\% & 89.3 & 100\% \\
+In-graph GA (budget 29) & observed graph & 50.0\% & 28.7 & 100\% \\
+GraphGA de~novo (budget 200) & open evolution & 40.5\% & 200 & 1\% \\
+GraphGA de~novo (budget 29) & open evolution & 7.0\% & 29 & 7\% \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+Three experimental conclusions follow. First, giving population search the observed graph closes almost the entire de~novo gap on \emph{success}: In-graph GA at hard budget $Q{=}200$ reaches 77.5\%@$89.3$q versus EditGraph 79.5\%@$13.8$q (McNemar $p{=}0.65$), whereas de~novo GraphGA at the same budget remains at 40.5\%@$200$q with only 1\% of outputs in the library---so Effect/Direct \emph{query-dominate} In-graph GA at nearly matched success. Second, under a hard unique-node budget $Q{=}29$ on the shared graph, EditGraph still leads In-graph GA (79.5\% vs.\ 50.0\%; McNemar $p{=}1.3\times10^{-13}$), so ranking helps once action space is aligned---yet direct ridge already reaches 77.5\% under the unconstrained beam ($+2.0$pp vs.\ MLP, $p{=}0.50$), so we do not equate the GA gap with neural necessity. Self-built supervised editor probes remain Supporting Information diagnostics only.
+
+The older 36.5\% GraphGA number on a related episode set is therefore best read as a de~novo reference under library-path targets, not as evidence that EditGraph is a stronger general molecular optimizer. The scientifically central comparison remains Table~\ref{tab:exact}--\ref{tab:direct}.
+
+Under hidden labels, effect guidance adds 25.5 points over random beam (McNemar $p=4.29\times10^{-13}$). This is evidence for ranking under an artificial access restriction \emph{within} the observed graph---not for query-efficient discovery on expensive oracles.
+
+\subsection{Cheminformatics and Direct Predictors Before Claiming an MLP}
+\label{sec:chem_baselines}
+
+Before attributing gains to a neural \emph{edge-effect} model, we compare the same beam protocol under matched hidden-label settings with (i)~classical effect scorers and (ii)~direct destination-property predictors. Because every candidate $m'$ is an observed graph node whose structure is visible, Proposition~\ref{prop:equiv} makes $\widehat{p}(m')=g_\theta(m')$ the natural non-effect baseline---not a weaker substitute. All methods expand the same replace-only neighborhood and verify with unique-node label queries (see Experimental Responses to Protocol Critiques).
+
+\begin{table}[t]
+\caption{Primary Suite~A hidden-label comparison ($n{=}200$; unique-node query accounting with start free; script \texttt{40\_protocol\_freeze.py}). Direct ridge is the strongest relevant baseline once destination structure is visible; Static MW and classical effect scorers are retained as secondary references. Legacy per-call query totals appear only in the Supporting Information.}
+\label{tab:direct}
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Ranker & Succ. & Norm.\ dist. & Queries \\
+\midrule
+Random beam & 58.5\% & .395 & 23.8 \\
+Matched-pair / MMP & 66.5\% & .350 & 18.8 \\
+Direct GBT (dest.\ FP) & 71.5\% & .337 & 16.9 \\
+Direct ridge (dest.\ FP $+p(m)$) & 73.5\% & .310 & 15.2 \\
+Static MW heuristic & 74.0\% & .313 & 15.8 \\
+Ridge effect & 76.0\% & .306 & 15.0 \\
+Direct ridge (dest.\ FP) & 77.5\% & .303 & 14.9 \\
+\textbf{Effect beam (MLP)} & \textbf{79.5\%} & \textbf{.289} & \textbf{13.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The primary Suite~A contrast is Effect MLP vs.\ direct ridge: $+2.0$pp (12 vs.\ 8 discordant; McNemar $p{=}0.50$; bootstrap CI$_{95}$ $[-2.5,6.5]$\,pp) on the frozen $n{=}200$ draw. The legacy Static MW contrast ($+5.5$pp, $p{=}0.052$; CI$_{95}$ $[0.5,10.5]$) remains a secondary classical check but should not headline the paper once a destination-property model is present. Conditioning direct ridge on $p(m)$ does not help (73.5\%). Additional classical \emph{effect} scorers under the same beam (success only; Supporting Information) include $k$NN 73.0\%, ridge effect 73.0--76.0\% depending on feature recipe, additive MW 73.5\%, and tree ensembles 70.5--72.0\%.
+
+\paragraph{Confirmatory $n{=}1000$ with validation-frozen comparator.}
+To address test-set comparator selection, small-$n$ instability, and start overlap with the headline suite, we rebuilt validation ($n{=}200$) and confirmatory test ($n{=}1000$) suites with script \texttt{37\_confirm\_v2\_disjoint.py}. Isolation and freezing rules, fixed before viewing confirmatory outcomes: (i)~zero start overlap with the frozen headline $n{=}200$ suite; (ii)~zero start overlap between validation and confirmatory test; (iii)~train/validation/test edge endpoints and scaffolds remain those of \texttt{effect\_splits\_v2} (no re-split); (iv)~construction seeds $142$/$143$ (distinct from the headline suite seed~$42$); (v)~Direct ridge was selected as the best non-MLP comparator on validation (83.5\% vs.\ ridge effect 82.0\% / Static MW 70.5\%) and frozen before touching the confirmatory test; (vi)~the Effect MLP recipe, Direct-ridge training recipe, beam hyperparameters ($A{=}5$, $B{=}5$, $T{=}3$), and unique-node query rule were not changed after confirmatory evaluation. On the confirmatory test, Effect MLP reaches 83.6\% vs.\ direct ridge 79.7\% ($+3.9$pp; 76 vs.\ 37 discordant; McNemar $p{=}3\times10^{-4}$; CI$_{95}$ $[1.9,5.9]$\,pp; unique-node means $12.4$ vs.\ $13.6$ queries). Evaluating five \emph{pre-frozen} retrain checkpoints (seeds $\{42,\ldots,46\}$ from \texttt{results/multiseed\_fixed200/}, no further tuning) yields MLP $83.1\%\pm0.4\%$ and a mean residual $+3.4\pm0.4$pp (all five McNemar $p{\le}0.01$). The residual is therefore small, stable across retrain seeds, and statistically detectable on a start-disjoint $n{=}1000$ draw; it does not revive a large neural-necessity claim.
+Start-disjoint is \emph{not} neighborhood-independent: Table~\ref{tab:confirm_overlap} reports endpoint, path-node, depth-3 neighborhood, and Murcko-scaffold overlaps vs.\ the frozen headline suite (script \texttt{38\_protocol\_audits.py}). Starts and walk endpoints have zero overlap, but depth-3 neighborhoods share $\approx$53\% of the frozen neighborhood nodes (Jaccard $0.13$), and $37\%$ of confirmatory starts share a Murcko scaffold with some frozen start. We therefore call the suite \emph{start-disjoint}, not fully independent.
+\label{tab:chem}% keep label for cross-refs pointing at the classical effect block
+
+\begin{table}[t]
+\caption{Overlap between the frozen headline Suite~A set ($A$, $n{=}200$) and the start-disjoint confirmatory set ($B$, $n{=}1000$). Columns: $|A{\cap}B|$, fraction of frozen ($|A{\cap}B|/|A|$), fraction of confirm ($|A{\cap}B|/|B|$), and Jaccard. Depth-3 neighborhoods are replace-only BFS node sets. Separately, $37\%$ of confirmatory \emph{starts} share a Murcko scaffold with some frozen start.}
+\label{tab:confirm_overlap}
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Overlap type & $|A{\cap}B|$ & Frac.\ frozen & Frac.\ confirm & Jaccard \\
+\midrule
+Start & 0 & 0\% & 0\% & 0 \\
+Walk endpoint & 0 & 0\% & 0\% & 0 \\
+Any path node & 10 & 1.3\% & 0.3\% & 0.002 \\
+Depth-3 neighborhood & 56\,736 & 53.1\% & 14.9\% & 0.132 \\
+Start scaffold (Murcko) & 62 & 40.5\% & 11.2\% & 0.096 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Success vs.\ hard budget.}
+Single operating points ($A{=}5$, $B{=}5$, $T{=}3$) do not establish query efficiency. Figure~\ref{fig:pareto}(A) sweeps hard unique-node budgets $Q\in\{5,10,20,30,50,100,200\}$; panel~(B) shows the same runs against mean queries actually spent (early stopping / beam exhaustion). Effect MLP and direct ridge track each other across $Q$; the paired difference stays near $+2$--$3.5$pp and the unconstrained CI includes zero. At $Q{=}200$, In-graph GA reaches 77.5\% (mean $89$ queries) and ties direct ridge.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{pareto_success_queries.png}
+\caption{Suite~A success--query audit ($n{=}200$).
+\textbf{(A)}~Success vs.\ hard unique-node budget $Q$ (primary axis for protocol comparison).
+\textbf{(B)}~Success vs.\ mean unique-node queries actually spent (early stopping / incomplete budgets).
+Effect MLP and direct ridge remain close at every $Q$.}
+\label{fig:pareto}
+\end{figure}
+
+Critically, classical and direct rankers must be evaluated on \emph{every} core suite---not only endpoint-walk---before attributing gains to neural context modeling. Figure~\ref{fig:classical_matrix} and Table~\ref{tab:classical_matrix} report MLP, the best classical/\emph{direct} comparator, MMP, Random, and the cached BFS ceiling under matched hidden-label beams. On Suite~A the best comparator is now direct ridge (77.5\%); the MLP residual is $+2.0$pp ($p{=}0.50$). On leave-property-out, Static MW (77.5\%) slightly exceeds $k$NN (77.0\%) and the MLP residual is $+8.5$pp ($p{=}9\times10^{-4}$); we treat this as the \emph{strongest exploratory residual among secondary suites}, not confirmatory OOD evidence, because the comparator was still selected on the same $n{=}200$ test draw. On variable-depth and independent boxes the residual over $k$NN is small and non-significant ($+3.0$ / $+3.5$pp). On Suite~B (LogP/TPSA/SA), unique-node re-evaluation shows Effect MLP \emph{ties} ridge at 93.5\% ($p{=}1$; direct ridge 92.5\%), so the residual is zero---not $+1.5$pp from the older per-call Suite~B matrix. Contrasting MLP only with Random or a weak static slot heuristic invents a large ``learning'' gap that disappears once strong classical/direct models are included. Because ``best classical/direct'' on suites other than A/B is still chosen on the same 200-episode test draw, those McNemar $p$-values are descriptive; the frozen primary contrasts are MLP vs.\ direct ridge (Suite~A; confirmatory $n{=}1000$) and MLP vs.\ ridge (Suite~B unique-node).
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{classical_matrix.png}
+\caption{Classical/direct coverage across core suites under the hidden-label beam protocol ($n{=}200$).
+\textbf{(A)}~Dot/forest view of success rates (BFS ceiling, MLP, best classical/direct with identity annotation, MMP, Random).
+\textbf{(B)}~MLP residual over that suite's best comparator (McNemar $p$; $\dagger$ marginal, $*$ significant).
+Suite~A residual vs.\ direct ridge is $+2.0$pp on frozen $n{=}200$ ($p{=}0.50$; start-disjoint confirmatory $n{=}1000$: $+3.9$pp, $p{=}3\times10^{-4}$); Suite~B unique-node ties ridge at 93.5\% ($p{=}1$).}
+\label{fig:classical_matrix}
+\end{figure*}
+
+\begin{table*}[t]
+\caption{Classical/direct coverage across core suites (hidden-label beam; $n{=}200$ except unsatisfiable omitted). Columns are MLP, best classical/\emph{direct} comparator (name and rate), matched-pair / MMP, Random, and exact cached BFS ceiling. Suite~A MMP/Random are the frozen unique-node recipes from Table~\ref{tab:direct} (66.5\% / 58.5\%); other suites' MMP rates are from the multi-suite classical sweep. Suite~A primary comparator is direct destination ridge (frozen $n{=}200$ rates shown; start-disjoint confirmatory $n{=}1000$ residual $+3.9$pp, $p{=}3\times10^{-4}$). Suite~B row uses unique-node re-evaluation (MLP ties ridge at 93.5\%). Other suites' ``best'' entries remain descriptive test-set selections among Static MW/SA-slot, $k$NN, ridge, trees, and MMP (Supporting Information).}
+\label{tab:classical_matrix}
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Suite & MLP & Best classical/direct & MMP & Random & BFS & Gap / $p$ \\
+\midrule
+A: QED/LogP/MW & 79.5\% & Direct ridge 77.5\% & 66.5\% & 58.5\% & 100\% & $+2.0$ / $0.50$ \\
+B: LogP/TPSA/SA & 93.5\% & Ridge 93.5\% & 83.0\% & 82.5\% & 100\% & $+0.0$ / $1.0$ \\
+Leave-property-out & 86.0\% & Static MW 77.5\% & 72.5\% & 69.5\% & 100\% & $+8.5$ / $9\times10^{-4}$ \\
+Variable depth & 80.5\% & $k$NN 77.5\% & 66.0\% & 68.0\% & 96\% & $+3.0$ / $0.24$ \\
+Independent boxes & 19.0\% & $k$NN 15.5\% & 10.5\% & 11.0\% & 39.5\% & $+3.5$ / $0.065$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+\FloatBarrier
+
+\subsection{Multi-Seed Reliability}
+\label{sec:multiseed}
+
+On one frozen 200-episode test set, five retrain seeds give EditGraph $80.9\%\pm0.9\%$ (search-only with a frozen checkpoint is deterministic at $79.5\%$), while random beam moves $58.7\%\pm5.3\%$ (multi-seed table in the Supporting Information). Legacy random-start / open-loop ablations and controlled start/oracle-feedback tables are likewise deferred to the Supporting Information: neighborhood starts retain far more success than property-distance--matched random starts, and periodic closed-loop feedback beats budget-matched open-loop \mbox{verification}.
+
+\subsection{Property Dependence and a Second Descriptor Suite}
+\label{sec:suite_b}
+
+The primary coordinates (QED, LogP, MW) are \emph{not} three independent physical axes. QED is a composite desirability score whose components already include molecular weight, LogP, polar surface area, hydrogen-bond counts, and rotatable bonds~\citep{bickerton2012qed}. Jointly targeting QED with LogP and MW therefore mixes a derived objective with two of its own inputs, which can ease box satisfaction and inflate claims of ``multi-property control.'' On an 8{,}000-molecule MOSES subsample the linear correlations $\mathrm{corr}(\mathrm{QED},\mathrm{LogP})$ and $\mathrm{corr}(\mathrm{QED},\mathrm{MW})$ are weak ($0.04$ and $-0.11$), but the \emph{structural} dependence remains: optimizing QED is not separable from LogP/MW by construction.
+
+We therefore evaluate a second endpoint-walk suite on \textbf{LogP, TPSA, and synthetic accessibility (SA)}---lipophilicity, polarity, and a synthesizability proxy that are not reducible to QED and exhibit a real trade-off ($\mathrm{corr}(\mathrm{LogP},\mathrm{TPSA}){=}-0.49$ on the same subsample). Tolerances are $(0.20,10.0,0.50)$ with scales $(1.0,25.0,1.0)$. Table~\ref{tab:suite_b} reports the same replace-only protocol with the full classical matrix. Cached exact search still reaches 100\%. Under hidden labels, Effect beam reaches 93.5\% and \emph{ties} ridge under unique-node accounting ($p{=}1$; direct ridge 92.5\% @ $10.3$ queries; Table~\ref{tab:suite_b}). The older Static-SA-only contrast ($+29$pp) is retained only as a cautionary example of incomplete baselines. Docking scores, solubility models, permeability, and toxicity proxies remain future work: they require oracles that are not free RDKit lookups on an indexed library.
+
+\begin{table}[t]
+\caption{Second property suite (LogP, TPSA, SA) on 200 endpoint-walk episodes under unique-node query accounting (start free). Observed-graph BFS reads precomputed labels; beam rows use the hidden-label protocol with suite-specific models.}
+\label{tab:suite_b}
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Method & Succ. & Queries & Notes \\
+\midrule
+Exact graph BFS (cached) & 100.0\% & 0 & observed graph \\
+Random beam & 82.5\% & 17.5 & unique-node \\
+Static SA-slot heuristic & 65.0\% & 18.5 & weak classical \\
+Matched-pair / MMP & 83.0\% & 14.2 & unique-node \\
+Direct ridge (dest.\ FP) & 92.5\% & 10.3 & unique-node \\
+Ridge / linear regression & 93.5\% & 8.8 & \textbf{ties MLP} \\
+\textbf{Effect beam (MLP)} & \textbf{93.5\%} & \textbf{8.9} & $+0.0$pp vs.\ ridge \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Coverage and Cases}
+\label{sec:cases}
+
+Coverage tertiles and chemical edit-path figures (including step-wise audits) appear in the Supporting Information. On the frozen suite, EditGraph is not monotone in local solution density; all compared methods produce 100\% valid/unique outputs, and in-graph novelty is zero by construction. Returned paths are observed BRICS replacements---auditable graph edits, not laboratory synthesis routes.
+
+\section{Discussion and Limitations}
+\label{sec:limitations}
+
+\subsection{Assumption-Conditioned Cost--Success Preferences}
+\label{sec:regimes}
+
+Proposition~\ref{prop:equiv} limits what learning can claim under visible structure. Empirically, \emph{which operating point is preferred} is conditioned on benchmark assumptions rather than a single success ranking. Table~\ref{tab:regimes} reports methods as \emph{success@paid-query} pairs and classifies pairwise relations as \textbf{Pareto} (weakly better on success and queries, strictly better on one), \textbf{success-dominant}, \textbf{query-dominant}, or \textbf{incomparable}. Pure success orderings such as ``Effect$\approx$GA$\approx$Direct'' are avoided because they hide large query gaps (e.g., MLP $79.5\%$@$13.8$q vs.\ In-graph GA $77.5\%$@$89.3$q). The full matrix is in the Supporting Information. All Suite~A hidden-label / $f{=}0$ rates use the frozen evaluator (script \texttt{40\_protocol\_freeze.py}; episode-identical across wrappers).
+
+\begin{table}[ht]
+\caption{Four decisive regimes as cost--success operating points (Suite~A $n{=}200$ unless noted; unique-node start-free queries). Preference classes are relative to the stated comparator set---not a total order.}
+\label{tab:regimes}
+\centering
+\small
+\begin{tabular}{lp{3.2cm}p{4.6cm}l}
+\toprule
+Regime & Objective / constraint & Operating points (succ@q) & Preference \\
+\midrule
+Full index ($f{=}1$) &
+Zero paid labels (cache free) &
+Cached BFS $100\%$@$0$q; MLP/Direct also @$0$q but $79.5$/$77.5\%$ &
+\textbf{Pareto:} BFS \\
+Hidden labels, Suite~A &
+May pay for labels &
+MLP $79.5\%$@$13.8$q; Direct $77.5\%$@$14.9$q; Random $58.5\%$@$23.8$q; exhaustive $100\%$@$571.5$q; $A^\ast$ $100\%$@$61.5$q &
+Point-est.\ Pareto: MLP$\succ$Direct; paired success unresolved ($p{=}0.50$). Incomp.\ vs.\ exhaustive/$A^\ast$ \\
+Hidden labels, Suite~B &
+Same graph; LogP/TPSA/SA &
+MLP $=$ ridge $93.5\%$ @ $\approx$8.9q (tie) &
+\textbf{tie} (matched cost) \\
+Action-space match &
+Shared replace-only graph &
+Effect $79.5\%$@$13.8$q; Direct $77.5\%$@$14.9$q; In-graph GA@$200$ $77.5\%$@$89.3$q; de~novo GraphGA $40.5\%$@$200$q &
+Effect/Direct \textbf{query-dominate} GA; graph access closes de~novo gap \\
+\bottomrule
+\end{tabular}
+\end{table}
+\FloatBarrier
+
+Four contrasts are decisive. (i)~\emph{Indexing under a zero-paid-label objective} (confirmed \emph{policy-preference} change---not a free-label algorithm ranking reversal): when the cache is complete ($f{=}1$), cached BFS Pareto-dominates learned beams at $100\%$@$0$q. When the same BFS is forbidden from buying labels ($f{=}0$ cached-only), it scores $0\%$@$0$q while paying rankers succeed. Hidden-label exhaustive search that \emph{may} pay still reaches $100\%$@$571.5$q (median $465$; P$_{95}$ $1628$), so the $f{:}\,0\!\to\!1$ contrast is a change in the feasible zero-paid policy set with indexing completeness---not ``BFS loses to MLP'' under matched paid search. (ii)~\emph{Suite}: Suite~A's small MLP--Direct residual becomes a Suite~B tie at matched query cost. On Suite~A alone, MLP point-estimate Pareto-dominates Direct ($79.5\%$@$13.8$q vs.\ $77.5\%$@$14.9$q), but the paired success difference is statistically unresolved (McNemar $p{=}0.50$)---so we treat them as neighboring operating points under uncertainty, not a confirmed ranking. (iii)~\emph{Oracle support} (exploratory point estimate only): MMFF transfer shows Random $78\%$ / MLP $72\%$ / Direct $58\%$ ($n{=}50$); Random$\succ$MLP is \emph{not} confirmed (McNemar $p{=}0.58$). (iv)~\emph{Search-space match}: on the shared graph, Effect/Direct query-dominate In-graph GA at similar success; de~novo GraphGA remains far below. Together with Proposition~\ref{prop:equiv}, Table~\ref{tab:regimes} supports reading this paper as a \emph{benchmark-assumption audit} of cost--success preferences.
+
+\subsection{Experimental Responses to Protocol Critiques}
+\label{sec:critique_response}
+
+Seven recurring critiques of this setting are themselves measurable. We answer each with a controlled experiment rather than prose alone (script \texttt{25\_critique\_response\_experiments.py}; \texttt{results/critique\_response/}).
+
+\paragraph{Partial indexing replaces all-or-nothing hiding.}
+Hidden-label search ($f{=}0$) and fully observed search ($f{=}1$) are endpoints of a single continuum: a deterministic fraction $f$ of library nodes may be read for free from the index; all other label reads count as \emph{paid} unique-node queries (episode starts are free by construction). Table~\ref{tab:partial} reports \emph{measured} success and paid queries at each $f$ with models and planner RNG \emph{frozen} across $f$ (script \texttt{40\_protocol\_freeze.py}; same Effect MLP checkpoint and Table~\ref{tab:direct} Direct ridge at $\texttt{max\_rows}{=}15000$)---only the free-cache mask changes. At $f{=}0$, the default hidden-label oracle and the partial-index oracle are \emph{episode-identical} for every ranker (zero success and query discordance; \texttt{results/protocol\_freeze/f0\_identity\_check.json}). Paid-query counts need not scale with $(1{-}f)$ because free labels change early stopping, beam state, revisit patterns, and solution depth. Cached-only BFS (no paid queries) rises from 0\% at $f{=}0$ toward 100\% at $f{=}1$. Ranking methods that may buy missing labels keep constant success across $f$, while their paid unique-node means fall. At full indexing, exact cached search dominates the MLP beam (100\% vs.\ 79.5\%): the observed-graph task is solved by graph search, not by learning.
+
+\begin{table}[t]
+\caption{Partial-indexing sweep on 200 endpoint-walk episodes (script \texttt{40\_protocol\_freeze.py}). Free-cache fraction $f$; success and \emph{measured} mean paid unique-node queries (start free; models/RNG frozen across $f$). Ranking success is constant in $f$ while paid queries fall. The $f{=}0$ column matches Table~\ref{tab:direct} episode-by-episode.}
+\label{tab:partial}
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Method & $f{=}0$ & $f{=}0.25$ & $f{=}0.5$ & $f{=}1$ \\
+\midrule
+Cached-only BFS & 0\% / 0q & 25.5\% / 0q & 66.0\% / 0q & \textbf{100\% / 0q} \\
+Effect beam (MLP) & 79.5\% / 13.8q & 79.5\% / 10.2q & 79.5\% / 6.9q & 79.5\% / 0q \\
+Direct ridge & 77.5\% / 14.9q & 77.5\% / 11.1q & 77.5\% / 7.5q & 77.5\% / 0q \\
+Static MW heuristic & 74.0\% / 15.8q & 74.0\% / 11.7q & 74.0\% / 7.8q & 74.0\% / 0q \\
+Random beam & 58.5\% / 23.8q & 58.5\% / 17.7q & 58.5\% / 11.9q & 58.5\% / 0q \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{MLP residual under full classical/direct coverage.}
+The frozen Suite~A primary contrast is Effect MLP vs.\ direct destination ridge: $+2.0$pp on $n{=}200$ (McNemar $p{=}0.50$; CI$_{95}$ $[-2.5,6.5]$) and $+3.9$pp on the start-disjoint confirmatory $n{=}1000$ draw ($p{=}3\times10^{-4}$; CI$_{95}$ $[1.9,5.9]$; five-seed mean $+3.4\pm0.4$pp). The legacy Static MW contrast ($+5.5$pp, $p{=}0.052$ on $n{=}200$) is retained only as a secondary classical check. Extending MMP/$k$NN/ridge/trees/static heuristics to all core suites (Table~\ref{tab:classical_matrix}) changes the Suite~B story. Under unique-node accounting, Suite~B Effect MLP \emph{ties} ridge effect at 93.5\% ($p{=}1$; direct ridge 92.5\% @ $10.3$q; MLP/ridge mean queries $\approx$8.9), so the neural residual is zero once strong classical models and consistent query counting are present---not the $+29$pp suggested by a Static-SA-only baseline. Leave-property-out shows the strongest \emph{exploratory} residual over Static MW ($+8.5$pp, descriptive $p{=}9\times10^{-4}$ on the same test draw); variable-depth and independent boxes do not. We therefore do \emph{not} claim that explicit edge-effect modeling is necessary for precise control, and we treat incomplete classical/direct coverage as itself a source of inflated learning claims.
+
+\paragraph{Structured missingness beyond MCAR.}
+Random free-cache fraction $f$ (Table~\ref{tab:partial}) is only one missingness model. On the frozen $n{=}200$ suite we compare MCAR ($f{=}0.5$), scaffold-block, property-region, and all-paid under a \emph{shared hard paid unique-node budget} $Q{=}15$ (script \texttt{37\_confirm\_v2\_disjoint.py}). The free/paid availability bit is never passed to the scorer. Under \emph{paid-only} accounting (free reads do not consume $Q$), MLP success rises from 64.5\% (all-paid) to 76.5\% (MCAR) and 79.5\% (scaffold / property-region), while mean paid queries fall from $9.3$ to $1.5$--$6.3$; the Direct residual remains $\approx$5--6pp. Under a \emph{charge-all} control that bills every unique revelation against $Q$, all four missingness patterns collapse to the same operating point (MLP 64.5\% / Direct 58.5\% / Random 36.5\%). Structured missingness therefore changes cost and effective exploration only when free labels are truly free; once every read is charged, the pattern is irrelevant. Property-region membership is encoded as a precomputed SMILES set rather than a live property feature, but residual information can still flow through which reads fail to increment the paid counter---the charge-all control removes that channel.
+
+\paragraph{Non-free oracle probe (MMFF energy).}
+As a minimal non-indexed oracle, we replace the MW axis with MMFF94 energy after deterministic ETKDG embed$+$minimize (full protocol in Supporting Information; script \texttt{36\_mmff\_scheme\_b.py}). Under the fixed seed/cache protocol, $E_{\mathrm{MMFF}}$ remains a function of SMILES, so Proposition~\ref{prop:equiv} still applies to ideal maps; the probes test transfer and finite-data surrogates. Two protocols:
+\begin{itemize}
+  \item \emph{Transfer falsifier} ($n{=}50$; Suite~A QED/LogP/MW rankers, no MMFF training): point estimates Random 78.0\% / Effect MLP 72.0\% / direct ridge 58.0\% (discordant McNemar vs.\ Random: Effect $8$/$5$, $p{=}0.58$; Direct $13$/$3$, $p{=}0.021$; \texttt{results/mmff\_stats/}). The Random$\succ$MLP gap is an \emph{observed point-estimate inversion in an exploratory transfer probe}, not a confirmed reversal. Cheap-descriptor Suite~A rankers do not reliably transfer to this MMFF energy axis.
+  \item \emph{Scheme~B budgeted surrogates} ($n{=}30$; exploratory): we separate $Q_{\mathrm{offline}}$, $Q_{\mathrm{online}}$, and $Q_{\mathrm{total}}$. Offline: $\approx$300 \emph{node}-level MMFF energies on an edge-centric train-endpoint pool (plus episode start/endpoint warmup; post-warmup cache size 330) acquire \emph{once} before search and fit MMFF direct / effect / UCB; labels are $(q,\mathrm{LogP},E)$, with effect targets $\Delta E{=}E(b){-}E(a)$ on co-labeled endpoints. Online: hard unique-node budgets $Q{\in}\{10,20,40\}$ charge only molecules \emph{outside} that shared cache. All methods---including Random---may read the offline cache for free during search, so Random is matched on warm-start \emph{label access} but not on a fitted MMFF surrogate. Thus $Q$ is online-only; surrogate $Q_{\mathrm{total}}{\approx}300{+}Q_{\mathrm{online}}$ is \emph{not} cost-matched to Random. At $Q{=}40$, rates are Random 46.7\%, transfer MLP 43.3\%, MMFF effect/UCB 36.7\%, MMFF direct 33.3\% (step size $3.33$pp). All Random-vs-surrogate McNemar contrasts have $p{\ge}0.13$; we report \emph{no detectable MMFF-surrogate advantage under this protocol} and do \emph{not} claim a ranked ordering.
+\end{itemize}
+Neither protocol is docking; together they caution against reading Suite~A hidden-label rankings as costly-oracle sample efficiency.
+
+\paragraph{Query counting rules.}
+Unless stated otherwise, a \emph{label query} is one revelation of the full property vector $p(m)$ for a canonical SMILES $m$. The episode start is \emph{free} throughout ($p(m_0)$ is known at construction); reported unique-node means are start-free and match the frozen $f{=}0$ Effect total ($13.8$; script \texttt{40\_protocol\_freeze.py}). Within a single episode, repeated visits to the same SMILES are not re-charged (deduplicated cache). Queries count nodes, not individual axes. Beam methods with a hard budget $Q$ stop expanding when the unique-node query count reaches $Q$; unsuccessful runs therefore need not exhaust $Q$ if the beam empties earlier. In-graph GA@budget~$B$ may report mean queries $<B$ because early stagnation stops acquisition; de~novo GraphGA typically spends the full budget. Noisy-label probes resample noise on every fresh oracle call (no persistent dirty cache). Older per-call (non-deduped) totals and start-charged ledger copies are archived in the Supporting Information for reproduction only.
+
+\paragraph{Independent boxes are mostly unreachable.}
+Of 200 independent-box episodes, cached depth-3 BFS solves only 79 (39.5\%). Effect succeeds on 38/79 reachable episodes (48.1\%) and on 0/121 unreachable ones. The headline 19\% is therefore primarily a reachability/coverage bound, not evidence that ranking fails on feasible external goals.
+
+\paragraph{Noise remains a falsifier.}
+The noisy-label probe (79.5\%$\to$27.5\%) is retained as a negative result against assay sample-efficiency claims; we do not treat recovery under noise as a solved problem in this manuscript.
+
+EditGraph is deliberately bounded. It optimizes target satisfaction and the route through a molecular library; it does not propose unseen structures. Novelty near zero is therefore expected, not evidence for de novo generation. The price of this design is equally clear: a useful start and a connected three-edit neighborhood are required. Endpoint-walk episodes further guarantee local satisfiability by construction (see Benchmark Structure and Diagnostics); performance on independently sampled or unsatisfiable targets is substantially lower and should be reported alongside the primary suite.
+
+\paragraph{Label access versus chemistry cost.}
+The protocol-critique experiments make the split operational: when the index is complete ($f{=}1$), cached BFS/$A^\ast$ is the correct algorithm (100\%/0 paid queries) and the MLP beam is strictly suboptimal. Hidden-label totals (79.5\% @ $\approx$14 unique-node revelations) equal the $f{=}0$ end of the partial-index sweep and measure ranking under missing labels---not savings on docking or assays. This manuscript contains no docking, DFT, or experimental oracles; until such labels are present with incomplete indexing by construction, ``query-efficient molecular discovery'' is not an available claim.
+
+\paragraph{External baselines: measured, not assumed.}
+Fairness ablations show that search-space access---not genetic operators alone---explains most of the de~novo GraphGA gap: In-graph GA@200 ties EditGraph (77.5\% vs.\ 79.5\%; $p{=}0.65$), while de~novo@200 stays at 40.5\%. At hard budget $Q{=}29$ on the shared graph, EditGraph still leads In-graph GA (79.5\% vs.\ 50.0\%). We therefore do not cite de~novo GraphGA percentages as general-optimizer superiority. Official M$^4$olGen/GRPO weights were unavailable; the self-built supervised editor (18.5\% greedy / 38.5\% matched probes) remains an appendix diagnostic. A prompt-only local LLM without the edit graph is a strawman (0\% success). Within the matched graph protocol, classical and \emph{direct} predictors close most of the gap to the MLP once evaluated on every core suite (Table~\ref{tab:classical_matrix}): Suite~A direct ridge reaches 77.5\% ($+2.0$pp, $p{=}0.50$), Suite~B ridge reaches 93.5\% (ties MLP), and incomplete classical coverage (e.g., Static SA alone) invents spurious neural gains. Endpoint-disjoint scaffold grouping reduces a direct leakage channel but does not create causal identification; effect predictions are trusted only within observed edit support and are verified by label queries under the hidden-label protocol only.
+
+\paragraph{Auditability versus synthesizability.}
+Returned paths document which BRICS fragment was replaced, at which attachment labels, and how predicted $\Delta p$ compared with RDKit labels. That audit trail supports mechanistic inspection of the planner; it does not certify synthetic accessibility of the sequence as a reaction scheme.
+
+\subsection{Claim Boundaries (What the Evidence Does Not Support)}
+\label{sec:claims}
+
+Table~\ref{tab:claims} lists over-claims the experiments do \emph{not} support.
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.36\textwidth}@{}}
+\caption{Claim boundaries: over-claims the results do \emph{not} support.}
+\label{tab:claims}\\
+\toprule
+Unsupported claim & Scoped positive claim & Bounding evidence \\
+\midrule
+\endfirsthead
+\toprule
+Unsupported claim & Scoped positive claim & Bounding evidence \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+General precise multi-property design &
+Fixed-start MOSES BRICS navigation with RDKit descriptors &
+Effect 79.5\%; independent 19.0\% (ceiling 39.5\%) \\
+Universal neural / $\Delta$-necessity &
+Prop.~\ref{prop:equiv}; matched $15$k: no MLP-only or $\Delta$-only gain &
+SI matched-arch.; Suite~B tie; $f{=}1$ BFS $100\%$@$0$q \\
+Leap beyond MW / ridge / direct &
+Classical rankers already strong on every suite &
+Direct 77.5\%@$14.9$q; Suite~B ridge ties MLP \\
+Assay / docking sample efficiency &
+Hidden-label stress test; MMFF exploratory only &
+Noise $79.5{\to}27.5\%$; transfer $p{=}0.58$ \\
+Synthesizable multi-step routes &
+Auditable BRICS paths; SA filter only &
+Paths $\neq$ synthesis routes \\
+Unknown / unsatisfiable targets &
+Negative controls + reachability &
+Unsat.\ 0\%; indep.\ 121/200 unreachable@3 \\
+Superiority over de~novo &
+Shared-graph Effect/Direct query-dominate In-graph GA &
+GA@200 $77.5\%$@$89.3$q vs.\ $79.5\%$@$13.8$q \\
+\end{longtable}
+}
+\FloatBarrier
+
+\section{Conclusion}
+
+This work is a molecular \emph{graph-navigation benchmark} and a \emph{theory-supported label-access audit} under the scope of the abstract. When destination structure is observed and properties are deterministic, direct and effect parameterizations are equivalent at the population optimum (Proposition~\ref{prop:equiv}); empirical MLP--ridge residuals are joint finite-model effects. Fully indexed navigation reduces to exact replace-only search (cached BFS $100\%$@$0$q). Under hidden labels the residual is small and suite-dependent ($+3.9$pp on $n{=}1000$; Suite~B tie at 93.5\%). Table~\ref{tab:regimes} reports regime-dependent \emph{cost--success} preferences; Tables~\ref{tab:regimes}--\ref{tab:claims} bound the claims. Operational ``query-efficient'' chemistry claims require a genuinely expensive oracle with $f{<}1$ by construction.
+
+\section*{Impact Statement}
+
+This work is a computational method for navigating an existing molecular library. It may reduce search cost and improve auditability, but generated suggestions must not be interpreted as safe, synthesizable, or clinically effective without independent chemical and experimental validation. The same optimization machinery could prioritize harmful compounds; release and downstream use should follow established chemical safety and access-control practices.
+
+\section*{Data and Software Availability}
+Processed episode suites, the DuckDB edit-graph index, frozen checkpoints, evaluation scripts, and frozen result manifests ship with the manuscript source (\path{data/processed/}, \path{checkpoints/}, \path{scripts/}, \path{results/}). Canonical SHA-256 hashes for the frozen $n{=}200$ suite, Effect MLP checkpoint, train split, and DuckDB index are in the Supporting Information (\path{results/canonical_frozen200/manifest.json}). Environment pin: \path{environment.yml}.
+
+Primary reproducibility scripts (directory \path{scripts/}):
+\begin{itemize}
+  \item \texttt{40\_protocol\_freeze.py} --- $f{=}0$ wrapper identity;
+  \item \texttt{41\_exact\_baselines\_unique\_node.py} --- exact/exhaustive unique-node queries;
+  \item \texttt{42\_matched\_architecture\_ablation.py};\\
+        \texttt{43\_frozen\_stratified\_diagnostics.py}; \texttt{37\_confirm\_v2\_disjoint.py};
+  \item \texttt{44\_consistency\_check\_main\_tables.py} --- headline-rate / Table~2 reweight / legacy-rate audit;
+  \item \texttt{45\_package\_review\_snapshot.sh} --- build the anonymous review tarball.
+\end{itemize}
+
+An \emph{anonymous} reproducibility snapshot is packaged for submission (code, environment pins, frozen manifests, checkpoint, and the scripts above). The cover letter states the anonymous archive URL and SHA-256; that link must be reviewer-accessible without revealing author identity. A public, de-anonymized release accompanies camera-ready. Raw MOSES molecules follow the original MOSES distribution terms~\citep{polykovskiy2020moses}.

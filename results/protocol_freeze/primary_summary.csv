@@ -1,0 +1,9 @@
+method,n,success_pct,mean_paid,median_paid,mean_dist
+Effect beam (MLP),200,79.5,13.76,8.5,0.289
+Matched-pair / MMP,200,66.5,18.8,18.5,0.35
+Static MW heuristic,200,74.0,15.77,11.0,0.313
+Ridge effect,200,76.0,14.95,11.0,0.306
+Direct ridge (dest FP),200,77.5,14.87,10.0,0.303
+Direct ridge (dest FP + p(m)),200,73.5,15.16,10.0,0.31
+Direct GBT (dest FP),200,71.5,16.91,13.0,0.337
+Random beam,200,58.5,23.84,24.0,0.395
