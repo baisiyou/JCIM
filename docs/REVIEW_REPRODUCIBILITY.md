@@ -1,6 +1,8 @@
-# Anonymous review reproducibility snapshot
+# Review reproducibility snapshot
 
-Prepare before JCIM submission (anonymous GitHub and/or Zenodo/OSF).
+Durable archive for JCIM peer review:
+https://github.com/baisiyou/JCIM
+(commit recorded in `paper/templates/jcim/cover_letter.txt`).
 
 ## Must include
 - `environment.yml`, `requirements.txt`
@@ -26,5 +28,5 @@ python scripts/43_frozen_stratified_diagnostics.py    # Table-2 strata
 ```
 
 ## Cover letter
-Insert the anonymous archive URL and a content hash (Zenodo DOI or git commit SHA)
-at submission time; replace with the public repo at camera-ready.
+Insert the archive URL and commit SHA at submission time.
+Legacy temporary mirror notes remain under `review_snapshot/ANON_UPLOAD_*.txt`.
